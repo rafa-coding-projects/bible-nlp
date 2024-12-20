@@ -9,6 +9,7 @@ torchtext
 sentencepiece
 tqdm
 matplotlib
+nbformat
 pandas
 scikit-learn
 seaborn
