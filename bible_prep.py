@@ -14,26 +14,23 @@ bible_text = response.text
 # print(bible_text[9541:10800])
 
 
-def find_all_indices(text: str, word: int) -> List[int]:
+def find_all_indices_regex(text: str, pattern: str) -> List[int]:
     """
-    Find all the indices of a word in a text
+    Find all the indices of a pattern in a text using regex
+    
+    Example usage:
+    # verses:
+    pattern = r"\n\d+:\d+"
+    # Chapter:
+    pattern = r"Chapter \d+"
 
     Args:
         text: str
-        word: str
-
+        pattern: str
     Returns:
         list[int]
     """
-    indices = []
-    start = 0
-    while start < len(text):
-        index = text.find(word, start)
-        if index == -1:
-            break
-        indices.append(index)
-        start = index + len(word)
-    return indices
+    return [m.start() for m in re.finditer(pattern, text)]
 
 
 def cut_past_first_number(text: str, pattern: str = "Chapter") -> str:
@@ -113,10 +110,9 @@ class BibleExtractor:
 
         Returns:
             dict[int, str]: whole text index where each chapters starts
-
         """
 
-        indices = find_all_indices(txt, "Chapter")
+        indices = find_all_indices_regex(txt, "Chapter[^\n]*")
         chapters = {}
         expand_txt_by = 40
         for i in indices:
@@ -135,3 +131,19 @@ class BibleExtractor:
             chapters.update({i: chapter})
 
         return chapters
+
+    def extract_verses(self, txt: str) -> Dict[int, str]:
+        """
+        Extract the verses of the Bible
+
+        Args:
+            txt: Full Bible text string
+
+        Returns:
+            dict[int, str]: whole text index where each verse starts
+
+        """
+
+        indices = find_all_indices_regex(txt, "\n\d+:\d+")
+
+        return {indices[n]: txt[indices[n]:indices[n + 1]].replace("\n", "") for n in range(len(indices) - 1)}
