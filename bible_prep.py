@@ -7,8 +7,8 @@ import requests
 url = "https://www.gutenberg.org/files/8300/8300-0.txt"
 
 # Download the text
-response = requests.get(url)
-bible_text = response.text
+# response = requests.get(url)
+# bible_text = response.text
 
 # Test the text
 # print(bible_text[9541:10800])
@@ -98,8 +98,21 @@ class BibleExtractor:
         Returns:
             str: text of the Bible
         """
-        response = requests.get(self.url)
+        response = requests.get(self.url, verify=False)
         return response.text
+        
+    def load_text_from_file(self, file_path: str) -> str:
+        """
+        Load the text of the Bible from a file
+
+        Args:
+            file_path: str - path to the file
+        Returns:
+
+            str: text of the Bible
+        """
+        with open(file_path, "r", encoding="utf-8") as file:
+            return file.read()
 
     def extract_chapters(self, txt: str) -> Dict[int, str]:
         """
