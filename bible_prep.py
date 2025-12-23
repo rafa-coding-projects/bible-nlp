@@ -1,5 +1,6 @@
 import re
 from typing import Dict, List
+import pandas as pd
 
 import requests
 
@@ -17,7 +18,7 @@ url = "https://www.gutenberg.org/files/8300/8300-0.txt"
 def find_all_indices_regex(text: str, pattern: str) -> List[int]:
     """
     Find all the indices of a pattern in a text using regex
-    
+
     Example usage:
     # verses:
     pattern = r"\n\d+:\d+"
@@ -100,7 +101,7 @@ class BibleExtractor:
         """
         response = requests.get(self.url, verify=False)
         return response.text
-        
+
     def load_text_from_file(self, file_path: str) -> str:
         """
         Load the text of the Bible from a file
@@ -159,4 +160,58 @@ class BibleExtractor:
 
         indices = find_all_indices_regex(txt, "\n\d+:\d+")
 
-        return {indices[n]: txt[indices[n]:indices[n + 1]].replace("\n", "") for n in range(len(indices) - 1)}
+        return {
+            indices[n]: txt[indices[n] : indices[n + 1]].replace("\n", "")
+            for n in range(len(indices) - 1)
+        }
+
+    def get_df(self):
+        """
+        Get a dataframe of the Bible with chapters and verses
+        Returns:
+            pd.DataFrame: DataFrame with chapters and verses
+        """
+
+        bible_text = self.load_text_from_file("bible.txt")
+        chapters = self.extract_chapters(bible_text)
+        verses = self.extract_verses(bible_text)
+
+        chapter_idx_lst = list(chapters.keys())
+        book_txt_lst = list(chapters.values())
+
+        bible_dict = {}
+
+        for chapter_idx in range(len(chapter_idx_lst) - 1):
+            for verse_idx, verse_text in verses.items():
+                if (
+                    chapter_idx_lst[chapter_idx]
+                    <= verse_idx
+                    <= chapter_idx_lst[chapter_idx + 1]
+                ):
+
+                    # Extract number from verse and chapter
+                    v_num = re.findall(r"\d+:\d+", verses[verse_idx])[0]
+                    v_txt = verses[verse_idx].replace(v_num, "")
+
+                    c_num = re.findall(r"\d+", book_txt_lst[chapter_idx])[0]
+                    c_txt = book_txt_lst[chapter_idx].replace(c_num, "")
+
+                    if len(bible_dict) == 0:
+
+                        bible_dict["chapter"] = [c_num]
+                        bible_dict["book"] = [c_txt]
+                        bible_dict["verse"] = [v_num]
+                        bible_dict["verse_txt"] = [v_txt]
+                        bible_dict["chapter_orig_idx"] = [chapter_idx_lst[chapter_idx]]
+                        bible_dict["verse_orig_idx"] = [verse_idx]
+                    else:
+                        bible_dict["chapter"].append(c_num)
+                        bible_dict["book"].append(c_txt)
+                        bible_dict["verse"].append(v_num)
+                        bible_dict["verse_txt"].append(v_txt)
+                        bible_dict["chapter_orig_idx"].append(
+                            chapter_idx_lst[chapter_idx]
+                        )
+                        bible_dict["verse_orig_idx"].append(verse_idx)
+
+        return pd.DataFrame(bible_dict)
