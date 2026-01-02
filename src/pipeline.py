@@ -66,8 +66,12 @@ class SpiritualGuidancePipeline:
 
         # Step 1: Reformulate query
         print("📝 Reformulating query...")
-        queries = self.reformulator.reformulate(query)
+        if self.reformulator is None:
+            queries = [query]
+        else:
+            queries = self.reformulator.reformulate(query)
         print(f"   Generated {len(queries)} query variations\n")
+        print(f"   Queries: {queries}\n")
 
         # Step 2: Search across all sources
         print(f"🔎 Searching {len(self.sources)} sources...")

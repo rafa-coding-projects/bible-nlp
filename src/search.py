@@ -1,9 +1,14 @@
-import numpy as np
-
 from typing import List
 
-from cls_models import DocumentSource, SearchResult, SearchStrategy, SearchStrategyDecorator
+import numpy as np
 from sentence_transformers import CrossEncoder, SentenceTransformer
+
+from cls_models import (
+    DocumentSource,
+    SearchResult,
+    SearchStrategy,
+    SearchStrategyDecorator,
+)
 
 # Re-rank with cross-encoder (better at context)
 cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
@@ -22,9 +27,10 @@ class CosineSearchStrategy(SearchStrategy):
     ) -> List[SearchResult]:
 
         all_results = []
-        for query in queries:
-            query_vec = self.model.encode([query])[0]
-
+        # Batch encode all queries at once for GPU efficiency
+        query_vecs = self.model.encode(queries, batch_size=32, show_progress_bar=False)
+        
+        for query_vec in query_vecs:
             for source in sources:
                 verse_emb_norm = source.get_embeddings() / np.linalg.norm(
                     source.get_embeddings(), axis=1, keepdims=True
@@ -96,16 +102,6 @@ class SentimentFilteredSearchDecorator(SearchStrategyDecorator):
         )
         self.wrapped_strategy = wrapped_strategy
 
-    def _score_positivity(self, text: str) -> float:
-        """Score text positivity from 0 (negative) to 1 (positive)."""
-        text = text[:512] if len(text) > 512 else text
-        result = self.sentiment_analyzer(text)[0]
-
-        if result["label"] == "POSITIVE":
-            return result["score"]
-        else:
-            return 1.0 - result["score"]
-
     def search(
         self, sources: List[DocumentSource], queries: List[str], top_k: int
     ) -> List[SearchResult]:
@@ -115,9 +111,15 @@ class SentimentFilteredSearchDecorator(SearchStrategyDecorator):
         if len(candidates) <= top_k:
             return candidates
 
-        # Score positivity
-        for result in candidates:
-            result.positivity_score = self._score_positivity(result.text)
+        # Score positivity - batch process for efficiency
+        texts = [r.text[:512] for r in candidates]
+        sentiment_results = self.sentiment_analyzer(texts, batch_size=32)
+        
+        for result, sentiment in zip(candidates, sentiment_results):
+            if sentiment["label"] == "POSITIVE":
+                result.positivity_score = sentiment["score"]
+            else:
+                result.positivity_score = 1.0 - sentiment["score"]
 
         # Filter and combine scores
         filtered = [r for r in candidates if r.positivity_score >= self.min_positivity]
@@ -173,23 +175,23 @@ class MMRSearchDecorator(SearchStrategyDecorator):
         """Apply MMR diversity to wrapped strategy's results."""
 
         # Get candidates from wrapped strategy (get more than needed)
-        candidates = self.wrapped_strategy.search(sources, queries, top_k * 3)
+        candidates = self.wrapped_strategy.search(sources, queries, 20 * 3)
 
         if len(candidates) <= top_k:
             return candidates  # Not enough results to diversify
 
         # Apply MMR
-        return self._apply_mmr(candidates, top_k)
+        return self._apply_mmr(queries, candidates, top_k)
 
     def _apply_mmr(
-        self, candidates: List[SearchResult], top_k: int
+        self, query, candidates: List[SearchResult], top_k: int
     ) -> List[SearchResult]:
         """Apply Maximal Marginal Relevance algorithm."""
 
         verses_list = [result.text for result in candidates]
 
         # Use first one
-        query = candidates[0].text
+        query = query[0]
 
         # Score by relevance and positivity
         pairs = [[query, verse] for verse in verses_list]

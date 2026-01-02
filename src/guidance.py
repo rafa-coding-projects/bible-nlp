@@ -1,5 +1,23 @@
 from typing import List, Optional
 from cls_models import SearchResult, GuidanceGenerator, GuidanceOutput
+import requests
+
+
+def check_llm_server(base_url='http://localhost:11434'):
+    """Check if Ollama or compatible LLM server is running"""
+    try:
+        response = requests.get(f"{base_url}/api/tags", timeout=2)
+        if response.status_code == 200:
+            models = response.json().get('models', [])
+            print(f"✓ LLM server is running at {base_url}")
+            print(f"Available models: {[m['name'] for m in models]}")
+            return True
+    except:
+        print(f"✗ No LLM server found at {base_url}")
+        print("\nTo install Ollama on Jetson:")
+        print("  curl -fsSL https://ollama.com/install.sh | sh")
+        print("  ollama pull llama3.2:3b  # or llama3.2:1b for faster inference")
+        return False
 
 
 class TextGuidanceGenerator(GuidanceGenerator):
@@ -10,6 +28,7 @@ class TextGuidanceGenerator(GuidanceGenerator):
     ):
         self.base_url = base_url
         self.model = model
+        check_llm_server()
 
     def generate(self, query: str, results: List[SearchResult]) -> GuidanceOutput:
         import requests
@@ -28,7 +47,7 @@ Here are relevant teachings from sacred sources:
 {context}
 
 Provide a thoughtful, encouraging response that:
-1. Acknowledges their situation with empathy, do not validate negative feelings
+1. Do not validate negative feelings
 2. Explains how these teachings relate to their concern
 3. Offers specific, actionable guidance
 4. Ends with hope and encouragement

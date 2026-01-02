@@ -24,17 +24,23 @@ class LLMReformulator(QueryReformulator):
         self.base_url = base_url
         self.model = model
 
-    def reformulate(self, query: str) -> List[str]:
+    def reformulate(self, query: str) -> str:
         import requests
 
-        prompt = f"""Transform this into a positive, solution-focused search query for finding spiritual guidance.
+        prompt = f"""Transform this problem-focused question into a positive, solution-focused search query for finding helpful Bible verses.
 
-Original: "{query}"
+Original question: "{query}"
 
 Rules:
-- Focus on solutions, wisdom, and positive outcomes
-- Keep concise (under 15 words)
+- Focus on solutions, wisdom, and positive outcomes rather than problems
+- Keep it concise (under 15 words)
 - Use words like: wisdom, guidance, peace, comfort, strength, hope, faith, love
+- Remove negative framing
+
+Examples:
+- "dealing with difficult people at work" → "wisdom for peaceful relationships at work"
+- "I'm afraid of failure" → "courage and faith in challenging times"
+- "feeling lonely and sad" → "God's comfort and companionship"
 
 Reformulated query:"""
 
@@ -51,10 +57,10 @@ Reformulated query:"""
             )
 
             if response.status_code == 200:
-                reformulated = response.json()["response"].strip().strip('"')
-                return [query, reformulated]  # Original + reformulated
-        except:
-            pass
-
+                reformulated = response.json()['response'].strip().strip('"').strip()
+                return reformulated
+        except Exception as e:
+            print(f"LLM reformulation error: {str(e)}")
+            
         # Fallback
-        return [query, f"spiritual guidance for {query}"]
+        return f"biblical wisdom for {query}"
